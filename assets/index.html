@@ -896,7 +896,7 @@
     <script src="https://cdn.jsdelivr.net/npm/markdown-it-footnote@4.0.0/dist/markdown-it-footnote.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/markdown-it-task-lists@2.1.1/dist/markdown-it-task-lists.min.js"></script>
     <script src="https://unpkg.com/markdown-it-anchor@9.2.0/dist/markdownItAnchor.umd.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/markdown-it-front-matter@0.2.4/index.min.js"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/markdown-it-texmath@1.0.0/texmath.js"></script>
 
@@ -1030,11 +1030,52 @@
             }
         });
 
-        // Register plugins
+        // ── Front-matter plugin (inlined; CDN build is CJS-only, no global export) ──
         let lastFrontMatter = null;
-        if (window.markdownItFrontMatter) {
-            md.use(window.markdownItFrontMatter, function(fm) { lastFrontMatter = fm; });
-        }
+        md.use(function frontMatterPlugin(md) {
+            const MARKER = '-', MARKER_CHAR = MARKER.charCodeAt(0);
+            md.block.ruler.before('table', 'front_matter', function(state, startLine, endLine, silent) {
+                // Must be at line 0 and start with '-'
+                if (startLine !== 0 || state.src.charCodeAt(state.bMarks[0] + state.tShift[0]) !== MARKER_CHAR) return false;
+
+                // Count opening dashes
+                let start = state.bMarks[startLine] + state.tShift[startLine];
+                let max = state.eMarks[startLine];
+                let pos = start;
+                while (pos <= max && state.src[pos] === '-') pos++;
+                if (pos - start < 3) return false;
+                if (silent) return true;
+
+                // content starts on next line
+                const startContent = state.bMarks[startLine + 1] + state.tShift[startLine + 1];
+
+                // Find closing ---
+                let nextLine = startLine + 1;
+                let closed = false;
+                while (nextLine < endLine) {
+                    start = state.bMarks[nextLine] + state.tShift[nextLine];
+                    max = state.eMarks[nextLine];
+                    if (state.src[start] === '-') {
+                        let p = start;
+                        while (p <= max && state.src[p] === '-') p++;
+                        if (p - start >= 3) { closed = true; break; }
+                    }
+                    nextLine++;
+                }
+
+                const meta = state.src.slice(startContent, state.bMarks[nextLine] + state.tShift[nextLine] - 1);
+                const token = state.push('front_matter', null, 0);
+                token.hidden = true;
+                token.block = true;
+                token.markup = state.src.slice(state.bMarks[startLine], max);
+                token.meta = meta;
+                token.map = [startLine, nextLine + (closed ? 1 : 0)];
+                state.line = nextLine + (closed ? 1 : 0);
+
+                lastFrontMatter = meta;
+                return true;
+            }, { alt: ['paragraph', 'reference', 'blockquote', 'list'] });
+        });
         md.use(markdownItGithubAlerts);
         if (window.markdownitEmoji) md.use(window.markdownitEmoji);
         if (window.markdownitFootnote) md.use(window.markdownitFootnote);
@@ -1214,6 +1255,7 @@
             lastContent = text;
 
             try {
+                lastFrontMatter = null; // reset before render so missing front-matter hides the panel
                 const html = md.render(text);
 
                 showContent();
