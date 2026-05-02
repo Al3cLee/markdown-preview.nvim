@@ -40,6 +40,12 @@ M.config = {
 	-- Fraction (0–1): vertical position of the final line when scrolled to end.
 	-- 0.5 = middle of viewport (default), 1.0 = bottom edge (no extra space)
 	bottom_padding = 0.5,
+
+	-- "dark" | "light" — initial theme for the browser preview
+	default_theme = "dark",
+
+	-- true = never show the front-matter YAML panel at the top of the preview
+	hide_yaml = false,
 }
 
 function M.setup(opts)
@@ -95,6 +101,8 @@ local function write_index(dir)
 	end
 	local content = util.read_text(src)
 	content = content:gsub("__BOTTOM_PADDING__", tostring(M.config.bottom_padding))
+	content = content:gsub("__DEFAULT_THEME__", M.config.default_theme == "light" and "light" or "dark")
+	content = content:gsub("__HIDE_YAML__", M.config.hide_yaml and "true" or "false")
 	util.write_text(dst, content)
 	return dst
 end

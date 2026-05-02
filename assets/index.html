@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark" data-bottom-padding="__BOTTOM_PADDING__">
+<html lang="en" data-theme="__DEFAULT_THEME__" data-bottom-padding="__BOTTOM_PADDING__" data-hide-yaml="__HIDE_YAML__">
 
 <head>
     <meta charset="utf-8" />
@@ -631,6 +631,57 @@
             margin-left: .3em;
         }
 
+        /* ── Front-matter YAML panel ──────────────────────────────────── */
+        #fmPanel {
+            max-width: 900px;
+            margin: .8rem auto 0;
+            padding: 0 2rem;
+        }
+
+        #fmPanel summary {
+            cursor: pointer;
+            font-size: .8rem;
+            color: var(--fg-muted);
+            user-select: none;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+            padding: .3rem 0;
+        }
+
+        #fmPanel summary::-webkit-details-marker { display: none; }
+
+        #fmPanel summary::before {
+            content: '▶';
+            font-size: .65rem;
+            transition: transform .15s;
+            display: inline-block;
+        }
+
+        #fmPanel[open] summary::before {
+            transform: rotate(90deg);
+        }
+
+        #fmPanel pre {
+            margin: .4rem 0 .8rem;
+            background: var(--code-bg);
+            border: 1px solid var(--stroke);
+            border-radius: 8px;
+            padding: .8em 1em;
+            overflow-x: auto;
+            font-size: .82em;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+            color: var(--fg-muted);
+        }
+
+        #fmPanel pre code {
+            background: none;
+            padding: 0;
+            border-radius: 0;
+            font-size: 1em;
+        }
+
         /* ── Mermaid diagrams ──────────────────────────────────────────── */
         .mermaid-block {
             position: relative;
@@ -791,6 +842,12 @@
         </button>
     </header>
 
+    <!-- Front-matter YAML panel (hidden until front-matter is parsed) -->
+    <details id="fmPanel" style="display:none">
+        <summary id="fmSummary">Front matter</summary>
+        <pre id="fmContent"><code></code></pre>
+    </details>
+
     <!-- Loading skeleton (replaced by content) -->
     <div id="loadingSkeleton" class="skeleton">
         <div class="skeleton-line"></div>
@@ -848,6 +905,7 @@
         import markdownItGithubAlerts from 'https://unpkg.com/markdown-it-github-alerts@1.0.1/dist/index.mjs';
 
         const BOTTOM_PADDING = parseFloat(document.documentElement.dataset.bottomPadding) || 0.5;
+        const HIDE_YAML = document.documentElement.dataset.hideYaml === 'true';
 
         // ── DOM refs ──────────────────────────────────────────────────
         const $ = (id) => document.getElementById(id);
@@ -879,7 +937,7 @@
 
         // ── State ─────────────────────────────────────────────────────
         let lastContent = null;
-        let currentTheme = 'dark';
+        let currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
         let mermaidIdCounter = 0;
         let sseConnected = false;
         const loadedPacks = new Set();
@@ -973,7 +1031,10 @@
         });
 
         // Register plugins
-        if (window.markdownItFrontMatter) md.use(window.markdownItFrontMatter, function() {});
+        let lastFrontMatter = null;
+        if (window.markdownItFrontMatter) {
+            md.use(window.markdownItFrontMatter, function(fm) { lastFrontMatter = fm; });
+        }
         md.use(markdownItGithubAlerts);
         if (window.markdownitEmoji) md.use(window.markdownitEmoji);
         if (window.markdownitFootnote) md.use(window.markdownitFootnote);
@@ -1156,6 +1217,21 @@
                 const html = md.render(text);
 
                 showContent();
+
+                // Update front-matter YAML panel
+                const fmPanel = document.getElementById('fmPanel');
+                const fmContent = document.getElementById('fmContent');
+                if (fmPanel && fmContent) {
+                    if (!HIDE_YAML && lastFrontMatter && lastFrontMatter.trim()) {
+                        const wasOpen = fmPanel.open;
+                        fmContent.querySelector('code').textContent = lastFrontMatter.trim();
+                        fmPanel.style.display = '';
+                        if (wasOpen) fmPanel.open = true;
+                    } else {
+                        fmPanel.style.display = 'none';
+                    }
+                    lastFrontMatter = null;
+                }
 
                 if (window.morphdom) {
                     const wrapper = document.createElement('div');
@@ -1427,7 +1503,7 @@
         // ── Boot ──────────────────────────────────────────────────────
         (async function boot() {
             try {
-                applyTheme('dark');
+                applyTheme(currentTheme);
                 await sync(true);
             } catch (e) {
                 console.error('[markdown-preview] boot error:', e);
