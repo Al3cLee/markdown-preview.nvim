@@ -103,7 +103,6 @@ local function write_index(dir)
 	content = content:gsub("__BOTTOM_PADDING__", tostring(M.config.bottom_padding))
 	content = content:gsub("__DEFAULT_THEME__", M.config.default_theme == "light" and "light" or "dark")
 	content = content:gsub("__HIDE_YAML__", M.config.hide_yaml and "true" or "false")
-	content = content:gsub("__SOURCE_WARNING__", "")
 	util.write_text(dst, content)
 	return dst
 end
@@ -333,7 +332,10 @@ local function update_source_symlink(bufnr, workspace_dir)
 			vim.loop.fs_unlink(link_path)
 		end
 	end
-	pcall(vim.loop.fs_symlink, source_dir, link_path)
+	local ok, err, code = vim.loop.fs_symlink(source_dir, link_path)
+	if not ok and err then
+		vim.notify("Markdown Preview: failed to create __src symlink: " .. err, vim.log.levels.WARN)
+	end
 end
 
 ---------------------------------------------------------------------------
