@@ -93,7 +93,7 @@ end
 -- Index HTML
 ---------------------------------------------------------------------------
 
-local function write_index(dir)
+local function write_index(dir, has_source)
 	local dst = vim.fs.joinpath(dir, M.config.index_name)
 	local src = util.resolve_asset("assets/index.html")
 	if not src then
@@ -103,17 +103,22 @@ local function write_index(dir)
 	content = content:gsub("__BOTTOM_PADDING__", tostring(M.config.bottom_padding))
 	content = content:gsub("__DEFAULT_THEME__", M.config.default_theme == "light" and "light" or "dark")
 	content = content:gsub("__HIDE_YAML__", M.config.hide_yaml and "true" or "false")
+	if has_source then
+		content = content:gsub("__SOURCE_WARNING__", "")
+	else
+		content = content:gsub("__SOURCE_WARNING__", [[<div id="sourceWarning" class="source-warning"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-2px;margin-right:4px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 9v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Save the file to disk to enable relative image paths.</div>]])
+	end
 	util.write_text(dst, content)
 	return dst
 end
 
-local function write_index_if_needed(dir)
+local function write_index_if_needed(dir, has_source)
 	if M.config.overwrite_index_on_start then
-		return write_index(dir)
+		return write_index(dir, has_source)
 	end
 	local dst = vim.fs.joinpath(dir, M.config.index_name)
 	if not util.file_exists(dst) then
-		return write_index(dir)
+		return write_index(dir, has_source)
 	end
 	return dst
 end
@@ -309,6 +314,32 @@ local function write_content(dir, text)
 	return path
 end
 
+local function update_source_symlink(bufnr, workspace_dir)
+	local path = vim.api.nvim_buf_get_name(bufnr)
+	if path == "" then
+		return
+	end
+	local source_dir = vim.fn.fnamemodify(path, ":h")
+	if source_dir == "" or vim.fn.isdirectory(source_dir) == 0 then
+		return
+	end
+	local link_path = vim.fs.joinpath(workspace_dir, "__src")
+	local current = vim.loop.fs_readlink(link_path)
+	if current then
+		local resolved = vim.loop.fs_realpath(current)
+		if resolved == vim.loop.fs_realpath(source_dir) then
+			return
+		end
+		vim.loop.fs_unlink(link_path)
+	else
+		local st = vim.loop.fs_stat(link_path)
+		if st then
+			vim.loop.fs_unlink(link_path)
+		end
+	end
+	pcall(vim.loop.fs_symlink, source_dir, link_path)
+end
+
 ---------------------------------------------------------------------------
 -- Refresh logic
 ---------------------------------------------------------------------------
@@ -326,6 +357,7 @@ local function maybe_refresh(bufnr, silent)
 	end
 
 	local dir = M._workspace_dir or ensure_workspace(bufnr)
+	update_source_symlink(bufnr, dir)
 	write_content(dir, text)
 	M._last_text_by_buf[bufnr] = text
 
@@ -428,7 +460,9 @@ function M.start()
 	util.mkdirp(dir)
 	M._workspace_dir = dir
 
-	write_index_if_needed(dir)
+	local has_source = vim.api.nvim_buf_get_name(bufnr) ~= ""
+	write_index_if_needed(dir, has_source)
+	update_source_symlink(bufnr, dir)
 	write_content(dir, text)
 	M._last_text_by_buf[bufnr] = text
 

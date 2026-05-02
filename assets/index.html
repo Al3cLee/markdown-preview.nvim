@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
+    <base href="/__src/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Markdown Preview</title>
 
@@ -636,6 +637,23 @@
             margin-left: .3em;
         }
 
+        /* ── Source warning ──────────────────────────────────────────── */
+        .source-warning {
+            max-width: 900px;
+            margin: .8rem auto 0;
+            padding: .55rem 1rem;
+            background: rgba(234, 179, 8, .08);
+            border: 1px solid rgba(234, 179, 8, .25);
+            border-radius: 6px;
+            font-size: .85rem;
+            color: var(--fg-muted);
+        }
+
+        [data-theme="light"] .source-warning {
+            background: rgba(234, 179, 8, .06);
+            border-color: rgba(234, 179, 8, .3);
+        }
+
         /* ── Front-matter YAML panel ──────────────────────────────────── */
         #fmPanel {
             max-width: 900px;
@@ -865,6 +883,8 @@
         <div class="skeleton-line"></div>
         <div class="skeleton-line"></div>
     </div>
+
+    __SOURCE_WARNING__
 
     <div id="content" style="display:none"></div>
 
@@ -1257,7 +1277,7 @@
         // ── Content sync ──────────────────────────────────────────────
         async function fetchContent() {
             try {
-                const resp = await fetch('content.md?ts=' + Date.now(), { cache: 'no-store' });
+                const resp = await fetch('/content.md?ts=' + Date.now(), { cache: 'no-store' });
                 if (!resp.ok) {
                     console.warn('[markdown-preview] content.md fetch failed:', resp.status);
                     return null;
